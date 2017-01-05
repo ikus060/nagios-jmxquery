@@ -1,0 +1,5 @@
+#!/bin/sh
+#
+# Nagios plugin to monitor Java JMX (http://java.sun.com/jmx)attributes.
+#
+java -cp $RDIR/nagios-jmxquery-1.0-SNAPSHOT.jar com.patrikdufresne.jmxquery.Main $@
