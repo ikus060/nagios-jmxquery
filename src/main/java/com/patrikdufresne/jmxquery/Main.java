@@ -13,6 +13,7 @@
 package com.patrikdufresne.jmxquery;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -36,6 +37,16 @@ import javax.management.openmbean.CompositeDataSupport;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
+
+import org.rrd4j.ConsolFun;
+import org.rrd4j.DsType;
+import org.rrd4j.core.FetchData;
+import org.rrd4j.core.FetchRequest;
+import org.rrd4j.core.RrdDb;
+import org.rrd4j.core.RrdDef;
+import org.rrd4j.core.RrdSafeFileBackendFactory;
+import org.rrd4j.core.Sample;
+import org.rrd4j.core.Util;
 
 public class Main {
 
@@ -138,6 +149,9 @@ public class Main {
      *
      */
     private static class ThresholdDefinition {
+
+        private static final String RRD = ".rrd";
+
         /**
          * Create a new threshold definition from comment line arguments.
          * 
@@ -164,6 +178,7 @@ public class Main {
                 else if (args[i].equals("unit")) att.unit = args[(++i)];
                 else if ((args[i].equals("d")) || (args[i].equals("desc")) || (args[i].equals("description"))) att.description = args[(++i)];
                 else if ((args[i].equals("l")) || (args[i].equals("label"))) att.label = args[(++i)];
+                else if ((args[i].equals("avg")) || (args[i].equals("average"))) att.average = Integer.valueOf(Integer.parseInt(args[(++i)]));
             }
             return att;
         }
@@ -173,6 +188,7 @@ public class Main {
         public String label;
         private String object;
         public List<Range> ranges;
+        public int average;
 
         public String unit;
 
@@ -205,8 +221,63 @@ public class Main {
             }
             tv.ranges = this.ranges;
             tv.unit = this.unit;
-            tv.value = value;
+
+            // Check if this value need to be average using RRD
+            if (this.average > 0 && value instanceof Number) {
+                tv.value = getRate(tv.label, ((Number) value).doubleValue(), this.average);
+            } else {
+                tv.value = value;
+            }
+
             return tv;
+        }
+
+        /**
+         * Convert the given value into a rate (per seconds) using RRD.
+         * 
+         * @param value
+         *            the new value to be added to RRD.
+         * @param rate
+         *            the time length to be used to compute average rate.
+         * @return the value or null if not enough data to compute rate.
+         */
+        private Double getRate(String name, double value, int rate) {
+            RrdDb rrdDb = null;
+            Sample sample = null;
+            try {
+                long start = Util.getTimestamp();
+                new File(RRD).mkdir();
+                File file = new File(RRD, name);
+                if (!file.isFile()) {
+                    RrdDef rrdDef = new RrdDef(file.getAbsolutePath(), start - 1L, 300L);
+                    rrdDef.setVersion(2);
+                    rrdDef.addDatasource("data", DsType.COUNTER, 300L, (0.0D / 0.0D), (0.0D / 0.0D));
+                    rrdDef.addArchive(ConsolFun.AVERAGE, 0.5D, 1, 120);
+                    rrdDb = new RrdDb(rrdDef, new RrdSafeFileBackendFactory());
+                } else {
+                    rrdDb = new RrdDb(file.getAbsolutePath(), new RrdSafeFileBackendFactory());
+                }
+                sample = rrdDb.createSample();
+                sample.setTime(start);
+                sample.setValue("data", value);
+                sample.update();
+
+                // Fetch the value.
+                long now = Util.getTimestamp();
+                FetchRequest request = rrdDb.createFetchRequest(ConsolFun.AVERAGE, now - rate, now);
+                FetchData fetchData = request.fetchData();
+                return Double.valueOf(fetchData.getAggregate("data", ConsolFun.AVERAGE));
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            } finally {
+                try {
+                    rrdDb.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            return null;
         }
 
         public String name() {
@@ -465,13 +536,13 @@ public class Main {
 
     private String password;
 
+    private PrintStream stdout = System.out;
+
     private String url;
 
     private String username;
 
     private int verbatim;
-
-    private PrintStream stdout = System.out;
 
     private void connect() throws IOException {
         Map<String, Object> hm = null;
@@ -629,4 +700,5 @@ public class Main {
         }
         return values;
     }
+
 }
