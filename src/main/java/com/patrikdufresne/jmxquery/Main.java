@@ -124,7 +124,7 @@ public class Main {
             if ((value instanceof Number)) {
                 result = (start <= ((Number) value).doubleValue()) && (((Number) value).doubleValue() <= end);
             }
-            return invert ? false : !result ? true : result;
+            return invert ? !result : result;
         }
     }
 
