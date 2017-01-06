@@ -284,7 +284,7 @@ public class Main {
             if (label != null) {
                 return label;
             }
-            return new StringBuilder().append(object).append(".").append(attribute).toString().replaceAll("[:,]\\w+=", ".");
+            return new StringBuilder().append(object).append(".").append(attribute).toString().replaceAll("[:,]\\w+=", "_");
         }
 
     }
