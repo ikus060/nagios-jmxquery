@@ -76,7 +76,7 @@ public class Main {
             String[] args = range.split("\\.\\.");
 
             t.start = parseNumber(args[0]);
-            t.end = 1.7976931348623157E+308D;
+            t.end = Double.MAX_VALUE;
             if (args.length == 2) {
                 t.end = parseNumber(args[1]);
             }
@@ -96,9 +96,9 @@ public class Main {
 
         private static double parseNumber(String value) {
             if (value.endsWith("inf")) {
-                return value.startsWith("-") ? 4.9E-324D : 1.7976931348623157E+308D;
+                return value.startsWith("-") ? Double.MIN_VALUE : Double.MAX_VALUE;
             }
-            if (value.isEmpty()) return 1.7976931348623157E+308D;
+            if (value.isEmpty()) return Double.MAX_VALUE;
             try {
                 return Double.parseDouble(value);
             } catch (NumberFormatException e) {
@@ -251,7 +251,7 @@ public class Main {
                 if (!file.isFile()) {
                     RrdDef rrdDef = new RrdDef(file.getAbsolutePath(), start - 1L, 300L);
                     rrdDef.setVersion(2);
-                    rrdDef.addDatasource("data", DsType.COUNTER, 300L, (0.0D / 0.0D), (0.0D / 0.0D));
+                    rrdDef.addDatasource("data", DsType.COUNTER, 300L, Double.NaN, Double.NaN);
                     rrdDef.addArchive(ConsolFun.AVERAGE, 0.5D, 1, 120);
                     rrdDb = new RrdDb(rrdDef, new RrdSafeFileBackendFactory());
                 } else {
@@ -305,8 +305,9 @@ public class Main {
             }
             SeverityLevel level = SeverityLevel.OK;
             for (Range r : ranges) {
-                if ((value == null) || (value.equals(Double.valueOf((0.0D / 0.0D))))) level = SeverityLevel.max(level, SeverityLevel.CRITICAL);
-                else if (r.inRange(value)) {
+                if (value == null || value().equals(Double.NaN)) {
+                    level = SeverityLevel.max(level, SeverityLevel.CRITICAL);
+                } else if (r.inRange(value)) {
                     level = SeverityLevel.max(level, r.level);
                 }
             }
@@ -320,7 +321,7 @@ public class Main {
             else {
                 string = new StringBuilder().append(string).append(value).toString();
             }
-            if ((value != null) && (!value.equals(Double.valueOf((0.0D / 0.0D))))) {
+            if (value != null && !value.equals(Double.NaN)) {
                 string = new StringBuilder().append(string).append(unit != null ? unit.toString() : "").toString();
             }
             return string;
@@ -642,7 +643,7 @@ public class Main {
                 out.append(new StringBuilder().append(att.name()).append(": ").append(att.value()).toString());
             }
 
-            if (((att.value instanceof Number)) && (!att.value.equals(Double.valueOf((0.0D / 0.0D))))) {
+            if (att.value instanceof Number && !att.value.equals(Double.NaN)) {
                 if (perf.length() != 0) perf.append(" ");
                 perf.append(new StringBuilder().append(att.name()).append("=").append(att.value()).toString());
             }
