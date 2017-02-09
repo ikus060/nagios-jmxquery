@@ -161,8 +161,9 @@ public class Main {
          *            the arguments defining the attributes to be fetched and the optional threshold.
          * @return a new threshold definition.
          */
-        public static ThresholdDefinition create(String object, String arguments) {
+        public static ThresholdDefinition create(Main main, String object, String arguments) {
             ThresholdDefinition att = new ThresholdDefinition();
+            att.main = main;
             att.object = object;
             String[] args = arguments.split(",|=");
             for (int i = 0; i < args.length; i++) {
@@ -183,6 +184,7 @@ public class Main {
             return att;
         }
 
+        public Main main;
         public String attribute;
         public String description;
         public String label;
@@ -244,10 +246,11 @@ public class Main {
         private Double getRate(String name, double value, int rate) {
             RrdDb rrdDb = null;
             Sample sample = null;
+            String filename = name + "_hash" + Math.abs(main.url.hashCode());
             try {
                 long start = Util.getTimestamp();
                 new File(RRD).mkdir();
-                File file = new File(RRD, name);
+                File file = new File(RRD, filename);
                 if (!file.isFile()) {
                     RrdDef rrdDef = new RrdDef(file.getAbsolutePath(), start - 1L, 300L);
                     rrdDef.setVersion(2);
@@ -584,7 +587,7 @@ public class Main {
                     verbatim = (option.length() - 1);
                 } else if ((option.equals("--threshold")) || (option.equals("--th"))) {
                     if (object == null) throw new IllegalArgumentException(new StringBuilder().append("-O need to set before ").append(option).toString());
-                    attributes.add(ThresholdDefinition.create(object, args[(++i)]));
+                    attributes.add(ThresholdDefinition.create(this, object, args[(++i)]));
                 }
             }
             // Check if argument is missing.
