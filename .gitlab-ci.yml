@@ -1,0 +1,61 @@
+image: maven:3-jdk-8
+
+variables:
+  MAVEN_OPTS: "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN
+               -Dorg.slf4j.simpleLogger.showDateTime=true
+               -Djava.awt.headless=true
+               -Dmaven.repo.local=.m2/repository"
+  MAVEN_CLI_OPTS: "-s ./settings.xml --batch-mode"
+
+# Cache downloaded dependencies and plugins between builds.
+cache:
+  paths:
+    - .m2/repository
+
+stages:
+  - test
+  - publish
+
+# Install requirements to build.
+before_script:
+# Get version
+- export REVISION="$(chmod +x ./version.sh; ./version.sh)"
+- echo "REVISION=$REVISION"
+
+test:
+  stage: test
+  tags:
+  - docker-icn
+  script:
+  - mvn $MAVEN_CLI_OPTS -Drevision=${REVISION} clean install
+  artifacts:
+    paths:
+    - target/nagios-jmxquery-*.jar
+    
+# Need java8
+#sonar:
+#  stage: test
+#  allow_failure: true
+#  image: maven:3-jdk-7
+#  tags:
+#  - docker-icn
+#  script:
+#  - mvn $MAVEN_CLI_OPTS -Drevision=${REVISION} compile test org.codehaus.mojo:sonar-maven-plugin:2.5:sonar -Dsonar.host.url=http://dc5cge.qc.bell.ca/sonar/ -Dsonar.jdbc.url=jdbc:h2:tcp://dc5cge.qc.bell.ca:9092/sonar
+
+# Send all tar.bz to dc5cge for ansible deployment
+publish:targz:
+  stage: publish
+  tags:
+  - docker-icn
+  script:
+  # Setup ssh
+  - eval $(ssh-agent -s)
+  - echo "$GITLAB_SSH_IDENTITY" | tr -d '\r' | ssh-add - > /dev/null
+  - echo "$GITLAB_SSH_IDENTITY"
+  # From revision "3.0.18.05-r5-g6f6235d-d20180515" get "3.0.18.05" 
+  - export DIR_VERSION="UCA-v${REVISION%%-r*}"
+  # Copy files to dc5cge  
+  - ssh -o StrictHostKeyChecking=no ogr@dc5cge mkdir -p "/usr/local/ogr/releases/${DIR_VERSION}/"
+  - scp -o StrictHostKeyChecking=no target/nagios-jmxquery-*.jar ogr@dc5cge:"/usr/local/ogr/releases/nagios-jmxquery/"
+  # Fix permission for apache (www user)
+  - ssh -o StrictHostKeyChecking=no ogr@dc5cge chmod -R og+r /usr/local/ogr/releases/
